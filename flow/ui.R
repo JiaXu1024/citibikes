@@ -5,7 +5,7 @@ shinyUI(fluidPage(
     titlePanel("Flow of Citi Bikes"),
     div(style=paste("width: 850px; height: 510px;",
       "margin-left: auto; margin-right: auto;"),
-      imageOutput("plot", width="850px", height="510px",)),
+      imageOutput("plot", width="850px", height="510px")),
     wellPanel(
       sliderInput("hour", "Hour",
         min=0, max=23, value=0, step=1, round=TRUE,

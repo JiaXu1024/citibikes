@@ -9,30 +9,18 @@ suppressMessages({
   library(gridExtra)
 })
 
+if (!file.exists("stations.rds"))
+  stop("Data file not found: stations.rds\nPlease run import.R first.")
+
+message("Loading stations...", appendLF=FALSE)
+stations <- readRDS("stations.rds")
+message()
+
 if (!file.exists("rides.rds"))
   stop("Data file not found: rides.rds\nPlease run import.R first.")
 
 message("Loading rides...", appendLF=FALSE)
 rides <- readRDS("rides.rds")
-message()
-
-# extract stations
-# another option is the JSON feed, which also gives the number of docks
-# http://citibikenyc.com/stations/json
-
-message("Extracting stations...", appendLF=FALSE)
-stations <- rbind(
-  rides %>%
-    select(id=start.station.id, name=start.station.name,
-      latitude=start.station.latitude, longitude=start.station.longitude),
-  rides %>%
-    select(id=end.station.id, name=end.station.name,
-      latitude=end.station.latitude, longitude=end.station.longitude)) %>%
-  group_by(id) %>%
-  summarise(name=last(name),
-    latitude=last(latitude), longitude=last(longitude)) %>%
-  arrange(id)
-setkey(stations, id)
 message()
 
 # flow
@@ -44,56 +32,55 @@ flow <- flow[stations]
 
 # count incoming rides
 # define weekends as Friday 6pm until 6pm Sunday 6pm
-weekends <- (wday(rides$end.date) == 6 & hour(rides$end.time) >= 18) |
-  wday(rides$end.date) == 7 |
-  (wday(rides$end.date) == 1 & hour(rides$end.time) < 18)
+weekends <- (wday(rides$end_date) == 6 & hour(rides$end_time) >= 18) |
+  wday(rides$end_date) == 7 |
+  (wday(rides$end_date) == 1 & hour(rides$end_time) < 18)
 weekdays <- !weekends
 
-weekdays.in <- rides[weekdays,] %>%
-  count(id=end.station.id, hour=hour(end.time))
-setkey(weekdays.in, id, hour)
-flow$in.weekdays <- weekdays.in[flow, n] / 5
-flow$in.weekdays[is.na(flow$in.weekdays)] <- 0
+wd_in <- rides[weekdays,] %>%
+  count(id=end_station, hour=hour(end_time))
+setkey(wd_in, id, hour)
+flow$wd_in <- wd_in[flow, n] / 5
+# flow$wd_in[is.na(flow$wd_in)] <- 0
 
-weekends.in <- rides[weekends,] %>%
-  count(id=end.station.id, hour=hour(end.time))
-setkey(weekends.in, id, hour)
-flow$in.weekends <- weekends.in[flow, n] / 2
-flow$in.weekends[is.na(flow$in.weekends)] <- 0
+we_in <- rides[weekends,] %>%
+  count(id=end_station, hour=hour(end_time))
+setkey(we_in, id, hour)
+flow$we_in <- we_in[flow, n] / 2
+# flow$we_in[is.na(flow$we_in)] <- 0
 
 # count outgoing rides
 # define weekends as Friday 6pm until 6pm Sunday 6pm
-weekends <- (wday(rides$start.date) == 6 & hour(rides$start.time) >= 18) |
-  wday(rides$start.date) == 7 |
-  (wday(rides$start.date) == 1 & hour(rides$start.time) < 18)
+weekends <- (wday(rides$start_date) == 6 & hour(rides$start_time) >= 18) |
+  wday(rides$start_date) == 7 |
+  (wday(rides$start_date) == 1 & hour(rides$start_time) < 18)
 weekdays <- !weekends
 
-weekdays.out <- rides[weekdays,] %>%
-  count(id=start.station.id, hour=hour(start.time))
-setkey(weekdays.out, id, hour)
-flow$out.weekdays <- weekdays.out[flow, n] / 5
-flow$out.weekdays[is.na(flow$out.weekdays)] <- 0
+wd_out <- rides[weekdays,] %>%
+  count(id=start_station, hour=hour(start_time))
+setkey(wd_out, id, hour)
+flow$wd_out <- wd_out[flow, n] / 5
+# flow$wd_out[is.na(flow$wd_out)] <- 0
 
-weekends.out <- rides[weekends,] %>%
-  count(id=start.station.id, hour=hour(start.time))
-setkey(weekends.out, id, hour)
-flow$out.weekends <- weekends.out[flow, n] / 2
-flow$out.weekends[is.na(flow$out.weekends)] <- 0
+we_out <- rides[weekends,] %>%
+  count(id=start_station, hour=hour(start_time))
+setkey(we_out, id, hour)
+flow$we_out <- we_out[flow, n] / 2
+# flow$we_out[is.na(flow$we_out)] <- 0
 
-rm(list=c("weekdays", "weekdays.in", "weekdays.out",
-  "weekends", "weekends.in", "weekends.out"))
+rm(list=c("weekdays", "wd_in", "wd_out", "weekends", "we_in", "we_out"))
 invisible(gc())
 
+flow[is.na(flow)] <- 0
 flow <- flow %>%
-  mutate(weekdays = in.weekdays - out.weekdays,
-    weekends = in.weekends - out.weekends)
+  mutate(wd = wd_in - wd_out, we = we_in - we_out)
 
 differences <- c(flow$weekdays, flow$weekends)
 differences <- cut_number(differences, n=11)
 levels(differences) <- -5:5
 
-flow$group.weekdays <- differences[1:nrow(flow)]
-flow$group.weekends <- differences[(nrow(flow)+1):(nrow(flow)*2)]
+flow$wd_group <- differences[1:nrow(flow)]
+flow$we_group <- differences[(nrow(flow)+1):(nrow(flow)*2)]
 
 rm(list=c("differences"))
 
@@ -112,7 +99,7 @@ if (!file.exists(file.path("flow", "www")))
 # https://github.com/hadley/ggplot2/issues/809
 pdf(NULL)
 p <- ggplot(flow[flow$hour == 0, ],
-  aes(longitude, latitude, color=as.integer(group.weekdays))) +
+  aes(longitude, latitude, color=as.integer(wd_group))) +
   geom_point() + scale_color_gradient2(name=element_blank(),
   low=muted("blue"), high=muted("red"), limits=c(-5, 5),
   breaks=c(-5, 5), labels=c("leaving", "arriving")) +
@@ -136,11 +123,11 @@ for (h in 0:23) {
   suppressWarnings({
     wd <- p + ggtitle(paste0("Weekdays ", h, ":00 - ", h+1, ":00")) +
       geom_point(data=flow[flow$hour == h,], size=10, alpha=1/5,
-      aes(longitude, latitude, color=group.weekdays)) +
+      aes(longitude, latitude, color=wd_group)) +
       theme(legend.position="none")
     we <- p + ggtitle(paste0("Weekends ", h, ":00 - ", h+1, ":00")) +
       geom_point(data=flow[flow$hour == h,], size=10, alpha=1/5,
-      aes(longitude, latitude, color=group.weekends)) +
+      aes(longitude, latitude, color=we_group)) +
       theme(legend.position="none")
     grid.arrange(arrangeGrob(wd + theme(legend.position="none"),
       we + theme(legend.position="none"), nrow=1),
