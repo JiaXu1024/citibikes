@@ -1,11 +1,29 @@
 #!/usr/bin/Rscript
 
 # load packages
-suppressMessages(library(data.table))
-suppressMessages(library(dplyr))
+suppressMessages({
+  library(data.table)
+  library(dplyr)
+  library(rjson)
+})
+
+# get stations from the JSON feed
+message("Downloading and saving stations...", appendLF=FALSE)
+stations <- fromJSON(file="http://citibikenyc.com/stations/json")
+stations <- stations[["stationBeanList"]]
+for (i in seq_along(stations))
+  stations[[i]]$lastCommunicationTime <- NULL
+stations <- tbl_dt(rbindlist(stations))
+stations <- stations %>%
+  select(id, name=stationName, docks=totalDocks, latitude, longitude)
+setkey(stations, id)
+saveRDS(stations, "stations.rds")
+message()
+rm(list=c("i", "stations"))
+invisible(gc())
 
 # get data file URLs to download
-message("Downloading list of available data files...", appendLF=FALSE)
+message("Downloading list of available ride files...", appendLF=FALSE)
 url <- "http://citibikenyc.com/system-data"
 fileregexp <- paste0("https:\\/\\/s3\\.amazonaws\\.com\\/tripdata\\/",
   "[0-9]{6}-citibike-tripdata\\.zip")
@@ -20,11 +38,11 @@ invisible(gc())
 
 # load existing data if available
 if (file.exists("rides.rds")) {
-  message("Loading existing data...", appendLF=FALSE)
+  message("Loading existing rides...", appendLF=FALSE)
   rides <- list(readRDS("rides.rds"))
   message()
   present <- unique(sub("^([0-9]{4})-([0-9]{2})-([0-9]{2})$", "\\1\\2",
-    unique(rides[[1]]$start.date)))
+    unique(rides[[1]]$start_date)))
   skip <- substring(filenames, 1, 6) %in% present
   message(paste0(filenames[skip], ": skipping\n"), appendLF=FALSE)
   fileurls <- fileurls[!skip]
@@ -61,64 +79,67 @@ for (i in seq_along(fileurls)) {
   tmp <- fread(filedata[1], na.strings=c("", "\\N"), showProgress=FALSE)
   unlink(filedata)
   message(" processing...", appendLF=FALSE)
-  setnames(tmp, colnames(tmp), make.names(colnames(tmp)))
+  setnames(tmp, gsub(" ", "_", colnames(tmp)))
   tmp$tripduration <- as.integer(tmp$tripduration)
-  tmp$start.station.id <- as.integer(tmp$start.station.id)
-  tmp$start.station.latitude <- as.numeric(tmp$start.station.latitude)
-  tmp$start.station.longitude <- as.numeric(tmp$start.station.longitude)
-  tmp$end.station.id <- as.integer(tmp$end.station.id)
-  tmp$end.station.latitude <- as.numeric(tmp$end.station.latitude)
-  tmp$end.station.longitude <- as.numeric(tmp$end.station.longitude)
+  tmp$start_station <- as.integer(tmp$start_station_id)
+  tmp$start_station_id <- NULL
+  tmp$start_station_name <- NULL
+  tmp$start_station_latitude <- NULL
+  tmp$start_station_longitude <- NULL
+  tmp$end_station <- as.integer(tmp$end_station_id)
+  tmp$end_station_id <- NULL
+  tmp$end_station_name <- NULL
+  tmp$end_station_latitude <- NULL
+  tmp$end_station_longitude <- NULL
   tmp$bikeid <- as.integer(tmp$bikeid)
-  tmp$birth.year <- as.integer(tmp$birth.year)
+  tmp$birth_year <- as.integer(tmp$birth_year)
   tmp$gender[tmp$gender == "1"] <- "male"
   tmp$gender[tmp$gender == "2"] <- "female"
   tmp$gender[tmp$gender == "0"] <- NA
-  start.format <- NULL
-  stop.format <- NULL
+  start_format <- NULL
+  stop_format <- NULL
   for (regexp in dateregexps) {
     if (length(grep(regexp, tmp$starttime[1])) == 1)
-      start.format <- names(dateregexps[dateregexps==regexp])
+      start_format <- names(dateregexps[dateregexps==regexp])
     if (length(grep(regexp, tmp$stoptime[1])) == 1)
-      stop.format <- names(dateregexps[dateregexps==regexp])
+      stop_format <- names(dateregexps[dateregexps==regexp])
   }
-  if (is.null(start.format))
+  if (is.null(start_format))
     stop("Unknown starttime format in file ", filenames[i], ": ",
       tmp$starttime[1])
-  if (is.null(stop.format))
+  if (is.null(stop_format))
     stop("Unknown stoptime format in file ", filenames[i], ": ",
       tmp$stoptime[1])
-  tmp$start.date <- as.IDate(tmp$starttime,
-    format=start.format)
-  tmp$start.time <- as.ITime(tmp$starttime,
-    format=start.format)
-  tmp$end.date <- as.IDate(tmp$stoptime,
-    format=stop.format)
-  tmp$end.time <- as.ITime(tmp$stoptime,
-    format=stop.format)
+  tmp$start_date <- as.IDate(tmp$starttime,
+    format=start_format)
+  tmp$start_time <- as.ITime(tmp$starttime,
+    format=start_format)
+  tmp$end_date <- as.IDate(tmp$stoptime,
+    format=stop_format)
+  tmp$end_time <- as.ITime(tmp$stoptime,
+    format=stop_format)
   tmp$starttime <- NULL
   tmp$stoptime <- NULL
-  setcolorder(tmp, c("tripduration", "start.date", "start.time",
-    "start.station.id", "start.station.name",
-    "start.station.latitude", "start.station.longitude",
-    "end.date", "end.time", "end.station.id", "end.station.name",
-    "end.station.latitude", "end.station.longitude",
-    "bikeid", "usertype", "birth.year", "gender"))
-  rides[[i]] <- tmp
+  setcolorder(tmp, c("start_date", "start_time", "start_station",
+    "end_date", "end_time", "end_station",
+    "tripduration", "bikeid", "usertype", "birth_year", "gender"))
+  rides[[length(rides) + 1]] <- tmp
   message()
 }
-rm(list=c("fileurls", "filenames", "i", "tmp", "dateregexps", "filedata", "regexp", "start.format", "stop.format"))
-invisible(gc())
 
 # change working directory back
 setwd(wd)
-rm(list=c("wd"))
+rm(list=c("fileurls", "filenames", "i", "tmp", "dateregexps",
+  "filedata", "regexp", "start_format", "stop_format", "wd"))
 invisible(gc())
 
 # combine and save
 message("Combining and saving rides...", appendLF=FALSE)
 rides <- tbl_dt(rbindlist(rides))
+setkey(rides, start_date, start_time)
 saveRDS(rides, "rides.rds")
 message()
+rm(list=c("rides"))
+invisible(gc())
 
 # EOF
