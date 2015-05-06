@@ -11,6 +11,10 @@ suppressMessages({
 rides <- readRDS("rides.rds")
 stations <- readRDS("stations.rds")
 
+# remove stations no longer operational (not included in the station JSON feed)
+rides <- rides %>%
+  filter(start_station %in% stations$id, end_station %in% stations$id)
+
 # count incoming rides
 # define weekends as Friday 6pm until 6pm Sunday 6pm
 weekends <- (wday(rides$end_date) == 6 & hour(rides$end_time) >= 18) |
@@ -86,7 +90,9 @@ for (k in 1:kmax) {
 }
 rm(list=c("k", "kmax", "km"))
 
-save(stations, variance, file="neighborhoods/neighborhoods.rda")
+if (!file.exists("neighborhoods"))
+  dir.create("neighborhoods", mode="755")
+save(stations, variance, file=file.path("neighborhoods", "neighborhoods.rda"))
 
 # run shiny app
 # library(shiny)

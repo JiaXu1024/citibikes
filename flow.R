@@ -41,13 +41,11 @@ wd_in <- rides[weekdays,] %>%
   count(id=end_station, hour=hour(end_time))
 setkey(wd_in, id, hour)
 flow$wd_in <- wd_in[flow, n] / 5
-# flow$wd_in[is.na(flow$wd_in)] <- 0
 
 we_in <- rides[weekends,] %>%
   count(id=end_station, hour=hour(end_time))
 setkey(we_in, id, hour)
 flow$we_in <- we_in[flow, n] / 2
-# flow$we_in[is.na(flow$we_in)] <- 0
 
 # count outgoing rides
 # define weekends as Friday 6pm until 6pm Sunday 6pm
@@ -60,13 +58,11 @@ wd_out <- rides[weekdays,] %>%
   count(id=start_station, hour=hour(start_time))
 setkey(wd_out, id, hour)
 flow$wd_out <- wd_out[flow, n] / 5
-# flow$wd_out[is.na(flow$wd_out)] <- 0
 
 we_out <- rides[weekends,] %>%
   count(id=start_station, hour=hour(start_time))
 setkey(we_out, id, hour)
 flow$we_out <- we_out[flow, n] / 2
-# flow$we_out[is.na(flow$we_out)] <- 0
 
 rm(list=c("weekdays", "wd_in", "wd_out", "weekends", "we_in", "we_out"))
 invisible(gc())
@@ -75,7 +71,7 @@ flow[is.na(flow)] <- 0
 flow <- flow %>%
   mutate(wd = wd_in - wd_out, we = we_in - we_out)
 
-differences <- c(flow$weekdays, flow$weekends)
+differences <- c(flow$wd, flow$we)
 differences <- cut_number(differences, n=11)
 levels(differences) <- -5:5
 
@@ -87,7 +83,7 @@ rm(list=c("differences"))
 saveRDS(flow, "flow.rds")
 message()
 
-# pre-generate shiny app plots for best performance
+# try out pre-generating shny app plots for best performance
 
 message("Pre-generating plots for shiny app...", appendLF=FALSE)
 if (!file.exists(file.path("flow", "www")))
