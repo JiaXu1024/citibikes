@@ -58,10 +58,12 @@ if (file.exists("rides.rds")) {
 # data files use two different date/time formats, regexps to detect which one
 dateregexps <- c(
   "^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}$",
-  "^[0-9]{1,2}\\/[0-9]{1,2}\\/[0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}$")
+  "^[0-9]{1,2}\\/[0-9]{1,2}\\/[0-9]{4} [0-9]{2}:[0-9]{2}:[0-9]{2}$",
+  "^[0-9]{1,2}\\/[0-9]{1,2}\\/[0-9]{4} [0-9]{1,2}:[0-9]{2}$")
 names(dateregexps) <- c(
   "%Y-%m-%d %H:%M:%S",
-  "%m/%d/%Y %H:%M:%S")
+  "%m/%d/%Y %H:%M:%S",
+  "%m/%d/%Y %H:%M")
 
 # change working directory to a tmp dir
 wd <- getwd()
