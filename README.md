@@ -4,6 +4,8 @@ R scripts for Citi Bike data
 This repository contains scripts to work with publicly available
 [data](http://www.citibikenyc.com/system-data) for [Citi
 Bikes](http://www.citibikenyc.com/) in New York City.
+There is an associated blog post
+[here](http://ilari.scheinin.fi/citi-bikes-and-neighborhoods/).
 
 import.R
 --------
