@@ -17,12 +17,12 @@ appended. Also fetches and saves station information from the JSON feed.
 flow.R
 --------
 
-[Visualize](http://ilari.scheinin.fi:3838/citibike-flow/) how bikes flow
+[Visualize](http://ilari.scheinin.fi/shiny/citibike-flow/) how bikes flow
 between different parts of the city during the day.
 
 neighborhoods.R
 ---------------
 
-[K-means clustering](http://ilari.scheinin.fi:3838/citibike-neighborhoods/)
+[K-means clustering](http://ilari.scheinin.fi/shiny/citibike-neighborhoods/)
 based on the average number of bikes arriving to and leaving from each station
 every hour, calculated separately for weekdays and weekends.
